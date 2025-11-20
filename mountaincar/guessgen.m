@@ -1,0 +1,1 @@
+p.g = 1;  % Normalized gravity constantp.m = 1;p.mtn = @(x)atan(3*cos(3*x));solution = ode45(@(t,y)dynamics(y,square(t/(t/100+0.1)),p), [0,20], [-0.5,0]);t = solution.x;u = square(t./(t./100+0.1));plot(t, solution.y)hold onplot(t,u)guess.time =t;guess.control = u;guess.state = solution.y;save guess.mat guess p
