@@ -1,4 +1,4 @@
-% MAIN - Mountain Car
+% MAIN - Pendubot
 %
 
 clc; clear;
@@ -21,15 +21,15 @@ problem.bounds.initialTime.upp = 0;
 problem.bounds.finalTime.low = 5;
 problem.bounds.finalTime.upp = 30;
 
-problem.bounds.state.low = [-1.2; -inf];
-problem.bounds.state.upp = [0.7; inf];
-problem.bounds.initialState.low = [-0.5;0];
-problem.bounds.initialState.upp = [-0.5;0];
-problem.bounds.finalState.low = [0.5;0];
-problem.bounds.finalState.upp = [0.5;0];
+problem.bounds.state.low = [-inf; -inf; -inf; -inf];
+problem.bounds.state.upp = [inf; inf; inf; inf];
+problem.bounds.initialState.low = [-pi/2;0;0;0];
+problem.bounds.initialState.upp = [-pi/2;0;0;0];
+problem.bounds.finalState.low = [pi/2;0;0;0];
+problem.bounds.finalState.upp = [pi/2;0;0;0];
 
-problem.bounds.control.low = -1; %-inf;
-problem.bounds.control.upp = 1; %inf;
+problem.bounds.control.low = -inf; %-inf;
+problem.bounds.control.upp = inf; %inf;
 
 % Guess at the initial trajectory
 
@@ -56,8 +56,11 @@ problem.options.defaultAccuracy = 'high';
 % Solve the problem
 soln = optimTraj(problem);
 t = soln.grid.time;
-q = soln.grid.state(1,:);
-dq = soln.grid.state(2,:);
+q1 = soln.grid.state(1,:);
+q2 = soln.grid.state(2,:);
+
+dq1 = soln.grid.state(3,:);
+dq2 = soln.grid.state(4,:);
 u = soln.grid.control;
 
 %%
@@ -74,12 +77,12 @@ end
 figure(1); clf;
 
 subplot(3,1,1)
-plot(t,q, t, xs(1,:))
+plot(t,q2, t, xs(2,:))
 ylabel('q')
-title('Mountain Car');
+title('Pendulum');
 
 subplot(3,1,2)
-plot(t,dq, t, xs(2,:))
+plot(t,dq2, t, xs(4,:))
 ylabel('dq')
 
 subplot(3,1,3)
@@ -91,9 +94,6 @@ ylabel('u')
 figure(3)
 clf 
 
-
-
-plot(linspace(-1.2, 0.6,100), sin(3*linspace(-1.2, 0.6, 100)))
 hold on 
 set(gca, 'YTickLabel', [ ]); 
 lblTime = uicontrol('style','text');
@@ -101,20 +101,16 @@ lblAction = uicontrol('style','text');
 set(lblTime,'Position', [10 20 40 20]);
 set(lblAction,'Position', [10 50 40 20]);
 
-carReal = plot(0,0, 'ob', 'LineWidth', 4);
-car = plot(0,0, 'or', 'LineWidth', 4);
 
 for i = 1:length(t)
-    set(carReal, 'XData', xs(1,i));
-    set(carReal, 'YData', sin(3 *xs(1,i))); 
-    set(car, 'XData', q(i));
-    set(car, 'YData', sin(3 *q(i)));
+    animate(t(i), soln.grid.state(:,i), p)
 
-    set(lblTime,'String', i - 1);
-    set(lblAction,'String', u(i));
+
+    % set(lblTime,'String', i - 1);
+    % set(lblAction,'String', u(i));
     
     drawnow;
-    pause(0.1);
+    pause(0.05);
 end
 %% LQR Control
 
