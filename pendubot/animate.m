@@ -1,7 +1,5 @@
 function animate(t,x,p)
 
-clf; hold on;
-
 q1 = x(1);
 q2 = x(2);
 

@@ -103,6 +103,7 @@ set(lblAction,'Position', [10 50 40 20]);
 
 
 for i = 1:length(t)
+    clf; hold on;
     animate(t(i), soln.grid.state(:,i), p)
 
 
@@ -119,13 +120,13 @@ xsol = soln.grid.state;
 
 
 
-K = zeros(1,2,length(t));
+K = zeros(1,4,length(t));
 
-Q = eye(2,2)*100;
-R = 1e-5;
+Q = diag([0.01, 7, 0.1, 0.9]);
+R = 6;
 
 for i = 1:length(t)
-    A = J(xsol(:,i), 1e-5*ones(2,1), @(x)dynamics(x, u(i), p));
+    A = J(xsol(:,i), 1e-5*ones(4,1), @(x)dynamics(x, u(i), p));
 
     B = J(u(i), 1e-5, @(u)dynamics(xsol(:,i), u, p));
 
@@ -142,9 +143,10 @@ x_cl(:,1) = x0;
 for i=2:length(t)
     sol = ode45(@(T,x)F_closed_loop(x, xsol(:,i), u(i)+(u(i)-u(i-1))*(T-t(i-1)), K(:,:,i)), [t(i-1), t(i)], x_cl(:,i-1));
     x_cl(:,i) = sol.y(:,end);
+    
 end
 
-plot(t, xsol, t, x_cl)
+plot(t, xsol(2,:), t, x_cl(2,:))
 
 %% Plot error
 
@@ -169,32 +171,17 @@ plot(t, x_cl-xsol)
  
 figure(3)
 clf
-
-plot(linspace(-1.2, 0.6,100), sin(3*linspace(-1.2, 0.6, 100)))
-hold on 
-set(gca, 'YTickLabel', [ ]); 
-lblTime = uicontrol('style','text');
-lblAction = uicontrol('style','text');
-set(lblTime,'Position', [10 20 40 20]);
-set(lblAction,'Position', [10 50 40 20]);
-
-carReal = plot(0,0, 'ob', 'LineWidth', 4);
-car = plot(0,0, 'or', 'LineWidth', 4);
-carCL = plot(0,0, 'o', 'LineWidth', 4);
-
 for i = 1:length(t)
-    set(carReal, 'XData', xs(1,i));
-    set(carReal, 'YData', sin(3 *xs(1,i))); 
+    clf; hold on;
+    animate(t(i), soln.grid.state(:,i), p)
+    animate(t(i), x_cl(:,i), p)
+    animate(t(i), xs(:,i), p)
 
-    set(carCL, 'XData', x_cl(1,i));
-    set(carCL, 'YData', sin(3 *x_cl(1,i))); 
-    set(car, 'XData', q(i));
-    set(car, 'YData', sin(3 *q(i)));
 
-    set(lblTime,'String', i - 1);
-    set(lblAction,'String', u(i));
+
+    % set(lblTime,'String', i - 1);
+    % set(lblAction,'String', u(i));
     
     drawnow;
-    pause(0.1);
+    pause(0.05);
 end
-
