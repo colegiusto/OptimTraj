@@ -1,4 +1,4 @@
-% MAIN - Acrobot
+% MAIN - Pendubot
 %
 
 clc; clear;
