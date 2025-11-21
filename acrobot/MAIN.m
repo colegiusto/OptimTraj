@@ -19,7 +19,7 @@ problem.func.pathObj = @(t,x,u)( u.^2 );
 problem.bounds.initialTime.low = 0;
 problem.bounds.initialTime.upp = 0;
 problem.bounds.finalTime.low = 5;
-problem.bounds.finalTime.upp = 30;
+problem.bounds.finalTime.upp = 20;
 
 problem.bounds.state.low = [-inf; -inf; -inf; -inf];
 problem.bounds.state.upp = [inf; inf; inf; inf];
@@ -50,6 +50,7 @@ problem.guess = guess;
 % Select a solver:
 problem.options.method = 'trapezoid';
 problem.options.defaultAccuracy = 'high';
+problem.options.trapezoid.nGrid = 100;
 % problem.options.nlpOpt = optimoptions('fmincon');
 % problem.options.nlpOpt.MaxIterations = 1000;
 
@@ -122,18 +123,17 @@ xsol = soln.grid.state;
 
 K = zeros(1,4,length(t));
 
-Q = diag([0.01, 7, 0.1, 0.9]);
+Q = diag([0.01, 8, 0.1, 1.3]);
 R = 6;
 
 for i = 1:length(t)
-    A = J(xsol(:,i), 1e-5*ones(4,1), @(x)dynamics(x, u(i), p));
+    A = J(xsol(:,i), 1e-5*ones(4,1), @(x)dynamics(x, 0.5*(u(i)+u(i)), p));
 
-    B = J(u(i), 1e-5, @(u)dynamics(xsol(:,i), u, p));
+    B = J(u(i), 1e-5, @(u)dynamics(0.5*(xsol(:,i)+xsol(:,i)), u, p));
 
     K(:,:, i) = lqr(A, B, Q, R);
 end
 
-%% Simulate controlled dynamics
 
 F_closed_loop = @(x, x_star, u_star, K)dynamics(x, u_star-K*(x-x_star), p);
 
@@ -141,13 +141,16 @@ x_cl = zeros(size(soln.grid.state));
 x_cl(:,1) = x0;
 
 for i=2:length(t)
-    sol = ode45(@(T,x)F_closed_loop(x, xsol(:,i), u(i)+(u(i)-u(i-1))*(T-t(i-1)), K(:,:,i)), [t(i-1), t(i)], x_cl(:,i-1));
+    sol = ode45(@(T,x)F_closed_loop(x, xsol(:,i), u(i)+(u(i)-u(i-1))*(T-t(i-1)), 0.5*(K(:,:,i-1)+K(:, :, i))), [t(i-1), t(i)], x_cl(:,i-1));
     x_cl(:,i) = sol.y(:,end);
     
 end
+figure(3); clf;
+subplot(2,1,1)
 
+plot(t, xsol(1,:), t, x_cl(1,:))
+subplot(2,1,2)
 plot(t, xsol(2,:), t, x_cl(2,:))
-
 %% Plot error
 
 figure(2)
@@ -185,3 +188,90 @@ for i = 1:length(t)
     drawnow;
     pause(0.05);
 end
+
+
+%% MPC
+
+start = [pi/2; 0; 0; 0];
+
+T=1e-3;
+
+tmax=20; t=0:T:tmax;
+NL=length(t)-1;
+
+A = J(start, 1e-5*ones(4,1), @(x)dynamics(x, 0, p));
+
+B = J(0, 1e-5, @(u)dynamics(start, u, p));
+
+ss1 = ss(A, B, eye(4), 0);
+ss1d = c2d(ss1, T);
+
+
+A=ss1d.A; B=ss1d.B; C=ss1d.C; D=ss1d.D;
+
+
+Ip = eye(4);
+Btilda = [C*B; B];
+Itilda = zeros(length(C(:,1))+length(A(:,1)),length(Ip(1,:)));
+Itilda(1:length(Ip(:,1)),1:length(Ip(1,:))) = Ip*0.9;
+
+Ftilda = [C*A; A];
+Qtilda = zeros(length(Ip(:,1))+length(A(:,1)),...
+length(Ip(:,1))+length(A(:,1)));
+Qtilda(1:4,1:4) = eye(4)*1;
+
+Atilda = [Itilda Ftilda];
+R = 1e-6;
+
+[Ktilda,Ldare,Gdare] = dare(Atilda,Btilda,Qtilda,R);
+
+RKBstuff = (R + Btilda'*Ktilda*Btilda)^-1 * Btilda'*Ktilda;
+GI = RKBstuff * Itilda;
+GX = RKBstuff * Ftilda;
+
+NLbig=5000;
+
+Gd = zeros(1,NLbig*4); 
+Gd(1:4) = -GI;
+
+Actilda = Atilda - (Btilda * RKBstuff * Atilda);
+Xtilda(1).mat = -(Actilda' * Ktilda * Itilda);
+RKBgd = (R + Btilda'*Ktilda*Btilda)^-1 * Btilda';
+Xtilda(NLbig).mat = 0*Xtilda(1).mat; % initializing space in var
+
+for n=2:NLbig
+Gd(4*(n-1)+1:4*n) = RKBgd * Xtilda(n-1).mat;
+Xtilda(n).mat = Actilda' * Xtilda(n-1).mat;
+end
+
+figure(1); clf; subplot(211)
+plot(t(2:end),-Gd(1:NL),'LineWidth',2); grid on
+xlabel('time (sec)')
+ylabel('gain')
+title('fig 6')
+% axis([0 20 0 1500]);
+
+
+tstep=0:T:7;
+% ystep corresponds to x-directed biped motion of com
+tfac = input('Enter a value for tfac. (tfac=1 to match Kajita): ');
+if isempty(tfac) || isstr(tfac)
+tfac = 1
+end
+ystep=0*tstep;
+ystep=ystep+.3*(tstep>2.6*tfac);
+ystep=ystep+.3*(tstep>3.4*tfac);
+ystep=ystep+.3*(tstep>4.2*tfac); % desired zmp trajectory
+ystep2=0*tstep;
+ystep2=ystep2+.1*(tstep>1.8*tfac);
+ystep2=ystep2-.2*(tstep>2.6*tfac);
+ystep2=ystep2+.2*(tstep>3.4*tfac);
+ystep2=ystep2-.2*(tstep>4.2*tfac);
+ystep2=ystep2+.1*(tstep>5*tfac); % desired zmp trajectory
+% smooth ystep and ystep2 somewhat
+for n=1:8
+ystep(10:end-10)=.5*(ystep(10:end-10)+ystep(11:end-9));
+ystep2(10:end-10)=.5*(ystep2(10:end-10)+ystep2(11:end-9));
+end
+figure(3); clf
+figure(2); clf

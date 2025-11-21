@@ -50,6 +50,7 @@ problem.guess = guess;
 % Select a solver:
 problem.options.method = 'trapezoid';
 problem.options.defaultAccuracy = 'high';
+
 % problem.options.nlpOpt = optimoptions('fmincon');
 % problem.options.nlpOpt.MaxIterations = 1000;
 
