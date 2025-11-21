@@ -105,7 +105,7 @@ set(lblAction,'Position', [10 50 40 20]);
 for i = 1:length(t)
     clf; hold on;
     animate(t(i), soln.grid.state(:,i), p)
-
+    animate(t(i), xs(:,i), p)
 
     % set(lblTime,'String', i - 1);
     % set(lblAction,'String', u(i));
@@ -122,7 +122,10 @@ xsol = soln.grid.state;
 
 K = zeros(1,4,length(t));
 
-Q = diag([0.01, 7, 0.1, 0.9]);
+Q = diag([1, 1, 0.1, 0.1]);
+
+%Q = diag([0.01, 7, 0.1, 0.9]);
+
 R = 6;
 
 for i = 1:length(t)
@@ -130,10 +133,9 @@ for i = 1:length(t)
 
     B = J(u(i), 1e-5, @(u)dynamics(xsol(:,i), u, p));
 
-    K(:,:, i) = lqr(A, B, Q, R);
+    K(:,:, i) = lqr(A, B, Q, R)*0;
 end
 
-%% Simulate controlled dynamics
 
 F_closed_loop = @(x, x_star, u_star, K)dynamics(x, u_star-K*(x-x_star), p);
 
@@ -146,6 +148,10 @@ for i=2:length(t)
     
 end
 
+figure(3); clf;
+subplot(2,1,1)
+plot(t, xsol(1,:), t, x_cl(1,:))
+subplot(2,1,2)
 plot(t, xsol(2,:), t, x_cl(2,:))
 
 %% Plot error
@@ -185,3 +191,62 @@ for i = 1:length(t)
     drawnow;
     pause(0.05);
 end
+
+
+%% MPC
+
+T = 1e-2;
+tmax=20; t=0:T:tmax;
+NL=length(t)-1;
+
+start = [pi/2; 0; 0; 0];
+
+Ac = J(start, 1e-5*ones(4,1), @(x)dynamics(x, 0, p));
+Bc = J(0, 1e-5, @(u)dynamics(start, u, p));
+
+Cc = eye(4,4);
+Dc = zeros(4,1);
+
+ss1c = ss(Ac, Bc, Cc, Dc);
+ss1d = c2d(ss1c, T);
+
+A=ss1d.A; B=ss1d.B; C=ss1d.C; D=ss1d.D;
+
+Ip = eye(4,4);
+Btilda = [C*B; B];
+
+Itilda = zeros(length(C(:,1))+length(A(:,1)),length(Ip(1,:)));
+Itilda(1:length(Ip(:,1)),1:length(Ip(1,:))) = Ip;
+
+Ftilda = [C*A; A];
+Qtilda = zeros(length(Ip(:,1))+length(A(:,1)),...
+length(Ip(:,1))+length(A(:,1)));
+Qtilda(1:4,1:4) = eye(4); % weighting error on tracking
+Atilda = [Itilda Ftilda];
+R = 1e-6;
+
+[Ktilda,Ldare,Gdare] = dare(Atilda,Btilda,Qtilda,R);
+RKBstuff = (R + Btilda'*Ktilda*Btilda)^-1 * Btilda'*Ktilda;
+GI = RKBstuff * Itilda;
+GX = RKBstuff * Ftilda;
+NLbig=5000;
+
+
+Gd = zeros(1,NLbig); Gd(1) = -GI;
+Actilda = Atilda - (Btilda * RKBstuff * Atilda);
+Xtilda(1).mat = -(Actilda' * Ktilda * Itilda);
+RKBgd = (R + Btilda'*Ktilda*Btilda)^-1 * Btilda';
+Xtilda(NLbig).mat = 0*Xtilda(1).mat; % initializing space in var
+
+
+for n=2:NLbig
+    Gd(n) = RKBgd * Xtilda(n-1).mat;
+    Xtilda(n).mat = Actilda' * Xtilda(n-1).mat;
+end
+
+figure(1); clf; subplot(211)
+plot(t(2:end),-Gd(1:NL),'LineWidth',2); grid on
+xlabel('time (sec)')
+ylabel('-G_p(t) [magnitude of gain]')
+title('This is NEGATIVE G_p(t); Should match Kajita03 Figure 6')
+axis([0 2 0 1500]);
