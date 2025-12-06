@@ -1,4 +1,4 @@
-% MAIN - Acrobot
+% MAIN - Pendubot
 %
 
 clc; clear;
@@ -124,7 +124,7 @@ xsol = soln.grid.state;
 K = zeros(1,4,length(t));
 
 Q = diag([0.01, 7, 0.1, 0.9]);
-R = 6;
+R = 1e-2;
 
 for i = 1:length(t)
     A = J(xsol(:,i), 1e-5*ones(4,1), @(x)dynamics(x, u(i), p));
@@ -136,13 +136,24 @@ end
 
 %% Simulate controlled dynamics
 
-F_closed_loop = @(x, x_star, u_star, K)dynamics(x, u_star-K*(x-x_star), p);
+F_closed_loop = @(x, x_star, u_star, K)dynamics(x, clip(u_star-K*(x-x_star), -1, 1), p);
 
 x_cl = zeros(size(soln.grid.state));
 x_cl(:,1) = x0;
 
+
+
+
 for i=2:length(t)
-    sol = ode45(@(T,x)F_closed_loop(x, xsol(:,i), u(i)+(u(i)-u(i-1))*(T-t(i-1)), K(:,:,i)), [t(i-1), t(i)], x_cl(:,i-1));
+
+    sol = ode45(@(T,x)F_closed_loop(...
+        x, ...
+        xsol(:,i-1)+(xsol(:,i)-xsol(:,i-1))*(T-t(i-1))/(t(i)-t(i-1)), ...
+        u(i-1)+(u(i)-u(i-1))*(T-t(i-1))/(t(i)-t(i-1)), ...
+        K(:,:,i-1)) , ...
+        [t(i-1), t(i)], ...
+        x_cl(:,i-1)...
+        );
     x_cl(:,i) = sol.y(:,end);
     
 end
@@ -176,7 +187,7 @@ for i = 1:length(t)
     clf; hold on;
     animate(t(i), soln.grid.state(:,i), p)
     animate(t(i), x_cl(:,i), p)
-    animate(t(i), xs(:,i), p)
+    % animate(t(i), xs(:,i), p)
 
 
 

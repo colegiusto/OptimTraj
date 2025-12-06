@@ -194,16 +194,16 @@ end
 
 start = [pi/2; 0; 0; 0];
 
-T=1e-3;
+T=1e-2;
 
 tmax=20; t=0:T:tmax;
 NL=length(t)-1;
 
-A = J(start, 1e-5*ones(4,1), @(x)dynamics(x, 0, p));
+Ac = J(start, 1e-5*ones(4,1), @(x)dynamics(x, 0, p));
 
-B = J(0, 1e-5, @(u)dynamics(start, u, p));
+Bc = J(0, 1e-5, @(u)dynamics(start, u, p));
 
-ss1 = ss(A, B, eye(4), 0);
+ss1 = ss(Ac, Bc, eye(4), 0);
 ss1d = c2d(ss1, T);
 
 
@@ -213,7 +213,8 @@ A=ss1d.A; B=ss1d.B; C=ss1d.C; D=ss1d.D;
 Ip = eye(4);
 Btilda = [C*B; B];
 Itilda = zeros(length(C(:,1))+length(A(:,1)),length(Ip(1,:)));
-Itilda(1:length(Ip(:,1)),1:length(Ip(1,:))) = Ip*0.9;
+Itilda(1:length(Ip(:,1)),1:length(Ip(1,:))) =\
+Ip*0.9;
 
 Ftilda = [C*A; A];
 Qtilda = zeros(length(Ip(:,1))+length(A(:,1)),...
@@ -251,27 +252,45 @@ ylabel('gain')
 title('fig 6')
 % axis([0 20 0 1500]);
 
+steptime = 5;
+tstep=0:T:steptime;
 
-tstep=0:T:7;
-% ystep corresponds to x-directed biped motion of com
-tfac = input('Enter a value for tfac. (tfac=1 to match Kajita): ');
-if isempty(tfac) || isstr(tfac)
-tfac = 1
-end
 ystep=0*tstep;
-ystep=ystep+.3*(tstep>2.6*tfac);
-ystep=ystep+.3*(tstep>3.4*tfac);
-ystep=ystep+.3*(tstep>4.2*tfac); % desired zmp trajectory
-ystep2=0*tstep;
-ystep2=ystep2+.1*(tstep>1.8*tfac);
-ystep2=ystep2-.2*(tstep>2.6*tfac);
-ystep2=ystep2+.2*(tstep>3.4*tfac);
-ystep2=ystep2-.2*(tstep>4.2*tfac);
-ystep2=ystep2+.1*(tstep>5*tfac); % desired zmp trajectory
-% smooth ystep and ystep2 somewhat
+ystep= ystep + (tstep> steptime/2);
+last = [4*pi/10;0.90455689;0;0];
+ystep = (last-start).*ystep+start;
+
+
+
+
 for n=1:8
-ystep(10:end-10)=.5*(ystep(10:end-10)+ystep(11:end-9));
-ystep2(10:end-10)=.5*(ystep2(10:end-10)+ystep2(11:end-9));
+% ystep(10:end-10)=.5*(ystep(10:end-10)+ystep(11:end-9));
 end
 figure(3); clf
 figure(2); clf
+
+
+tmax = 2;
+
+NLis=round(tmax/T);
+Gds = 1;
+nmax=length(tstep);
+xstep=zeros(4,length(tstep));
+
+ustep=0*tstep;
+dx=[0 0 0 0]';
+
+zstep = 0*xstep;
+pref=ystep(:, 1:NLis);
+
+ek_tot=0*xstep;
+ek_tot(1)=zstep(1)-ystep(1);
+
+
+for n=2:length(tstep)
+    xdes=[ystep(:,n);]*0;
+    pref=[pref(2:end) ystep(min(nmax,NLis+n-1))];
+
+    ustep(n-1) = -(GX*(xstep(:,n-1)-xdes) + GI*ek_tot(n-1) + ... 
+        Gds*Gd(1:NLis)*pref');
+end
