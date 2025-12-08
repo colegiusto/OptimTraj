@@ -1,4 +1,4 @@
-% MAIN - Pendubot
+% MAIN - Acrobot
 %
 
 clc; clear;
@@ -178,7 +178,6 @@ for i = 1:length(t)
     clf; hold on;
     animate(t(i), soln.grid.state(:,i), p)
     animate(t(i), x_cl(:,i), p)
-    animate(t(i), xs(:,i), p)
 
 
 
